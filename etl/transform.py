@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 import hashlib, json
 from typing import Dict, List, Any
@@ -17,30 +17,56 @@ def row_hash(row: Dict[str, Any]) -> bytes:
     blob = json.dumps(row, sort_keys=True, ensure_ascii=False).encode("utf-8")
     return hashlib.sha256(blob).digest()
 
-def parse_report_date(s: str, tzname: str) -> datetime:
-    """Sheets often stores date-only values. We anchor at local NOON to dodge DST cliffs, then to UTC."""
-    s = str(s).strip()
+def parse_report_date(s, tzname: str) -> datetime:
+    """Accepts US 'MM/DD/YYYY', ISO, month names, or Google serial numbers.
+       Returns UTC-aware datetime (anchored to local noon for date-only values)."""
     local = ZoneInfo(tzname)
-    fmts = ("%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y")  # add more if you need
-    for f in fmts:
+
+    # 1) Google/Excel serial number (days since 1899-12-30, with fractional day time)
+    if isinstance(s, (int, float)):
+        base = datetime(1899, 12, 30, tzinfo=local)
+        whole_days = int(s)
+        frac = float(s) - whole_days
+        seconds = round(frac * 86400)
+        dt_local = base + timedelta(days=whole_days, seconds=seconds)
+        if seconds == 0:  # date-only; anchor to noon local
+            dt_local = dt_local.replace(hour=12, minute=0, second=0, microsecond=0)
+        return dt_local.astimezone(ZoneInfo("UTC"))
+
+    # 2) Strings (trim and try multiple formats)
+    s = str(s).strip()
+    # common date-only
+    for f in ("%m/%d/%Y", "%Y-%m-%d", "%m/%d/%y"):
         try:
             d = datetime.strptime(s, f).date()
-            dt_local = datetime.combine(d, time(12, 0, 0), tzinfo=local)  # noon local
+            dt_local = datetime.combine(d, time(12, 0, 0), tzinfo=local)
             return dt_local.astimezone(ZoneInfo("UTC"))
         except Exception:
             pass
-    # If it's actually a datetime string, try a few common formats:
-    for f in ("%Y-%m-%d %H:%M:%S", "%m/%d/%Y %H:%M", "%m/%d/%Y %H:%M:%S"):
+
+    # month names (e.g., 'Aug 22, 2025', 'August 22, 2025')
+    for f in ("%b %d, %Y", "%B %d, %Y"):
         try:
-            dt = datetime.strptime(s, f).replace(tzinfo=local)
-            return dt.astimezone(ZoneInfo("UTC"))
+            d = datetime.strptime(s, f).date()
+            dt_local = datetime.combine(d, time(12, 0, 0), tzinfo=local)
+            return dt_local.astimezone(ZoneInfo("UTC"))
         except Exception:
             pass
-    # last resort: fromisoformat
+
+    # date-time strings
+    for f in ("%Y-%m-%d %H:%M:%S", "%m/%d/%Y %H:%M", "%m/%d/%Y %H:%M:%S"):
+        try:
+            dt_local = datetime.strptime(s, f).replace(tzinfo=local)
+            return dt_local.astimezone(ZoneInfo("UTC"))
+        except Exception:
+            pass
+
+    # final attempt: Python ISO parser
     dt = datetime.fromisoformat(s)
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=local)
     return dt.astimezone(ZoneInfo("UTC"))
+
 
 def unpivot_row(row: Dict[str, Any], cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
     tz = cfg.get("timezone", "America/Chicago")
