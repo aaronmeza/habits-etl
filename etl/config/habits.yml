@@ -1,0 +1,17 @@
+# etl/config/habits.yml
+sheet_id: "YOUR_SHEET_ID"
+tab_name: "Form Responses 1"
+timezone: "America/Chicago"     # sheet’s local tz
+email_column: "Email Address"
+date_column: "Report Date"      # use this, not "Timestamp"
+
+habits:
+  "Sleep (Number of hours)":         { id: "sleep_hours", type: "number" }
+  "Nutrition":                       { id: "nutrition_score", type: "number" }     # 1–10
+  "Mood":                            { id: "mood_score", type: "number" }          # 1–10
+  "Meditation (Number of Minutes)":  { id: "meditation_minutes", type: "number" }
+  "Workout":                         { id: "workout", type: "bool" }
+  "Water (How many litres?)":        { id: "water_liters", type: "number" }
+  "Skin Care":                       { id: "skin_care", type: "bool" }
+  "How authentically did you live this day?": { id: "authenticity_score", type: "number" } # 1-10
+notes_columns: ["Notes"]

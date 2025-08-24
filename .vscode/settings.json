@@ -1,0 +1,10 @@
+{
+  "cSpell.words": [
+    "dotenv",
+    "gspread",
+    "hypertable",
+    "psycopg",
+    "pytest",
+    "PYTHONPATH"
+  ]
+}
